@@ -154,6 +154,7 @@ void speedTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 
         vecRandParallel(seed, &vec, min, max);
         std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl << std::endl;
+
         //std::cout << omp_get_wtime() - t0 << std::endl;
 
         /*
