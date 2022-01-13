@@ -5,151 +5,166 @@
 #include <vector>
 #include <Windows.h>
 
-#define randomize ((mulA * seedI) + offsetB) % mod
+using std::vector;
+using std::thread;
 
-unsigned mod = (unsigned)std::pow(2, 32) - 1;
+#define randSeedI ((mulA * seedI) + offsetB) % mod
 
-unsigned mulA = rand() % mod;
-unsigned offsetB = rand() % mod;
+#define valBounds (max - min + 1) + min
 
 unsigned numOfThreads = std::thread::hardware_concurrency();
 
-
 struct vectorType {
     unsigned value;
-    vectorType* next;
 };
 
-using std::vector;
-using std::thread;
+unsigned mod = (unsigned)std::pow(2, 32) - 1;
+unsigned mulA = 134775813;
+unsigned offsetB = 1;
+
+#define isAccumulatorNeeded false
+
+#if isAccumulatorNeeded
+#define accInit vector<unsigned> accumulator(numOfThreads + 1)
+#define accResInit unsigned acc = 0
+#define accThreadProc , &accumulator
+#define accInc accumulator[t] += vec->at(i).value
+#define accSum for (auto &accVecVal : accumulator) acc += accVecVal
+#define accOutput std::cout << "Average is " << acc / vec->size() << std::endl
+#else
+#define accInit
+#define accResInit
+#define accThreadProc
+#define accInc
+#define accSum
+#define accOutput
+#endif
 
 
 //-----------------------Однопоточный метод---------------------------
 
-vectorType* vecRandLinear(unsigned length, unsigned seedI) {
-    vectorType* elem = new vectorType();
 
-    if (1 < length) {
-        elem->next = vecRandLinear(length - 1, randomize);
+void vecRandLinear(unsigned seedI, vector<vectorType>* vec, unsigned min, unsigned max) {
+    for (unsigned i = 0; i < vec->size(); i++) {
+        seedI = randSeedI;
+        vec->at(i).value = seedI % valBounds;
     }
-
-    if (1 > length)
-        return NULL;
-
-    elem->value = seedI;
-
-    return elem;
 }
 
 
-//-----------------------------Многопоточный метод через CS-----------------------------
+//-----------------------Многопоточный метод--------------------------
 
 
 /*По сути что происходит:
- * создаём количество голов списков, равное количеству потоков
- * запоминается ссылка на голову
- * в каждой из этих голов происходят следующие действия:
- * -> добавляется следующий элемент в конец списка
- * -> генерируется новое значение элемента списка на основе зерна и формулы рандомизации
- * -> процесс повторяется, пока длина каждого такого списка не равна length / numOfThreads
- * после этого концы списков склеиваются со следующими после них головами
- * оставшиеся элементы, которые были отрезаны как остаток от деления length / numOfThreads,
- * вычисляются доконца линейно
+ * Заполняем массив, разбивая его на numOfThreads блоков,
+ * с каждым из блоков которого взаимодействует ровно 1 поток.
+ * После заполнения таких блоков не вошедшие в них элементы
+ * заполняются одним потоком.
 */
-vectorType* vecRandParallel(unsigned length, unsigned seedI) {
-    vectorType* firstElem = new vectorType();
+#define localOffsetB offsetB * (vecMulA[t] - 1) / (vecMulA[0] - 1)
+#define parSeedI vecMulA[t + 1] * seedI + localOffsetB
+void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min, unsigned max) {
 
-    //Инициализация критической секции
-    CRITICAL_SECTION cs;
-    InitializeCriticalSection(&cs);
+    //---> Создаем массив множителей A
+    vector<int> vecMulA(numOfThreads + 1);
+    vecMulA[0] = mulA;
+    for (int i = 1; i < vecMulA.size(); i++) {
+        vecMulA[i] = (vecMulA[i - 1] * mulA) % mod;
+    }
+    //<---
 
-    //Получаем количество потоков
-    unsigned T = numOfThreads;
+    //---> Создаем массив сумм всех элементов массива vec
+    accInit;
+    accResInit;
+    //<---
 
-    //Инициализация массива значений потоков
-    vector<vectorType*> results(T);
-    for (unsigned i = 0; i < T; i++)
-        results[i] = new vectorType();
+    //---> Процесс каждого из ядер
+    auto thread_proc = [=, &vec accThreadProc](unsigned t) {
 
-    //Сохранение первых элементов
-    vector<vectorType*> firstElementsOfRes(T);
-    for (unsigned i = 0; i < T; i++)
-        firstElementsOfRes[i] = results[i];
+        unsigned seedI = vecMulA[t] * seedGlobal + localOffsetB;
 
-    unsigned numOfThreadSteps = length / T;
-
-    //Следующий элемент -> перевычисление зерна -> применение значения -> повторить
-    auto thread_proc = [=, &results, &cs, &seedI](unsigned t) {
-
-        for (unsigned i = 0; i < numOfThreadSteps; i++) {
-            vectorType* nextElem = new vectorType();
-
-            results[t]->next = nextElem;
-
-            results[t] = results[t]->next;
-
-            EnterCriticalSection(&cs);
-            seedI = randomize;
-            LeaveCriticalSection(&cs);
-
-            results[t]->value = seedI;
+        for (unsigned i = t; i < vec->size(); i += numOfThreads) {
+            vec->at(i).value = seedI % valBounds;
+            accInc;
+            seedI = parSeedI;
         }
-
     };
+    //<---
 
-    //Создаем массив исполняющих потоков
+    //---> Создаем массив исполняющих потоков и инициализируем исполнение каждого из потоков
     vector<thread> threads;
 
-    for (unsigned t = 1; t < T; t++)
+    for (unsigned t = 1; t < numOfThreads; t++)
         threads.emplace_back(thread_proc, t);
 
     thread_proc(0);
 
-    //Инициализируем выполнение каждого из потоков
     for (auto& thread : threads)
         thread.join();
+    //<---
 
-    //Записываем результаты вычислений каждого из потоков в один общий список
-    for (unsigned i = 0; i < T - 1; i++) {
-        results[i]->next = firstElementsOfRes[i + 1]->next;
-    }
-    firstElem = firstElementsOfRes[0]->next;
-
-    //Дополняем вычисленные многопоточно элементы однопоточными, которые не вошли в степень количества операций от потоков
-    if (firstElem != NULL)
-        results[T - 1]->next = vecRandLinear(length - (numOfThreadSteps * T), randomize);
-    else firstElem = vecRandLinear(length - (numOfThreadSteps * T), randomize);
-
-    //Очистка памяти
-    for (unsigned i = 0; i < T; i++)
-        firstElementsOfRes[i] = NULL;
-    DeleteCriticalSection(&cs);
-
-    return firstElem;
+    accSum;
+    accOutput;
 }
 
 
-//-----------------------------Многопоточный async метод-----------------------------
+//--------------------------Очистка вектора---------------------------
 
 
-unsigned vecRandAsyncProc(unsigned length, unsigned seedI, vectorType* prevElem) {
-
-    if (1 < length) {
-        vectorType* elem = new vectorType();
-        prevElem->next = elem;
-        elem->value = std::async(std::launch::async, vecRandAsyncProc, length - 1, randomize, elem).get();
+void vecZeroing(vector<vectorType>* vec) {
+    for (unsigned i = 0; i < vec->size(); i++) {
+        vec->at(i).value = 0;
     }
-
-    return seedI;
 }
 
 
-vectorType* vecRandAsyncParallel(unsigned length, unsigned seedI) {
-    vectorType* elem = new vectorType();
+//-------------------------------Тесты--------------------------------
 
-    elem->value = vecRandAsyncProc(length, seedI, elem);
 
-    return elem;
+void classicTest(unsigned length, unsigned seed, unsigned min, unsigned max, bool isParallel) {
+
+    vector<vectorType> vec(length);
+
+    double t0 = omp_get_wtime();
+
+    if (isParallel == false)
+        vecRandLinear(seed, &vec, min, max);
+
+    if (isParallel == true)
+        vecRandParallel(seed, &vec, min, max);
+
+    std::cout << "Resulting time is: " << omp_get_wtime() - t0 << std::endl << std::endl;
+
+    for (unsigned i = 0; i < length; i++) {
+        std::cout << i << " " << vec[i].value << std::endl;
+    }
+
+    vecZeroing(&vec);
+}
+
+
+void speedTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
+    vector<vectorType> vec(length);
+
+    for (unsigned i = 1; i <= std::thread::hardware_concurrency(); i++) {
+
+        numOfThreads = i;
+
+        double t0 = omp_get_wtime();
+
+        vecRandParallel(seed, &vec, min, max);
+        std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl << std::endl;
+        //std::cout << omp_get_wtime() - t0 << std::endl;
+
+        /*
+        for (unsigned j = 0; j < vec.size(); j++) {
+            std::cout << j << " " << vec[j].value << std::endl;
+        }
+        */
+
+        vecZeroing(&vec);
+    }
+
 }
 
 
@@ -158,39 +173,17 @@ vectorType* vecRandAsyncParallel(unsigned length, unsigned seedI) {
 
 int main()
 {
-    unsigned randType = 2;
-
-    unsigned length = 2048;
-
+    unsigned length = 100000000;
     unsigned seed = 228;
-    unsigned seedI = seed;
 
-    vectorType* vec = new vectorType();
+    unsigned min = 0;
+    unsigned max = 1000;
 
-    double t0 = omp_get_wtime();
+    bool testType = true;
+    bool isParallel = true;
 
-    if (randType == 0)
-        for (unsigned i = 0; i < length; i++)
-            vec = vecRandLinear(length, randomize);
-
-    if (randType == 1)
-        for (unsigned i = 0; i < length; i++)
-            vec = vecRandAsyncParallel(length, randomize);
-
-    if (randType == 2)
-        for (unsigned i = 0; i < length; i++)
-            vec = vecRandParallel(length, randomize);
-
-    vectorType* l_vec = vec;
-
-    int i = 1;
-
-    std::cout << "Resulting time is: " << omp_get_wtime() - t0 << std::endl << std::endl;
-
-    /*
-    while (l_vec != NULL) {
-        std::cout << i++ << " " << l_vec->value << std::endl;
-        l_vec = l_vec->next;
-    }
-    */
+    if (testType == false)
+        classicTest(length, seed, min, max, isParallel);
+    else
+        speedTest(length, seed, min, max);
 }
