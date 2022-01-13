@@ -174,6 +174,7 @@ void speedTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 
 int main()
 {
+    freopen("output_parallel.txt", "w", stdout);
     unsigned length = 100000000;
     unsigned seed = 228;
 
