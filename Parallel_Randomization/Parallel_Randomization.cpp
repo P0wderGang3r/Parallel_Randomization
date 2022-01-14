@@ -108,6 +108,45 @@ void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min,
 }
 
 
+//----------------------------Сортировка------------------------------
+
+unsigned middle(vector<vectorType>* vec, unsigned left, unsigned right) {
+    unsigned pivot = vec->at((left + right) / 2).value;
+    unsigned i = left;
+    unsigned j = right;
+    unsigned buf;
+    while (true) {
+
+        while (vec->at(i).value < pivot)
+            i = i + 1;
+        while (vec->at(j).value > pivot)
+            j = j - 1;
+        if (i >= j)
+            return j;
+
+        buf = vec->at(i).value;
+        vec->at(i).value = vec->at(j).value;
+        vec->at(j).value = buf;
+        i++;
+        j--;
+    }
+}
+
+void vecSort(vector<vectorType>* vec, unsigned left, unsigned right) {
+
+    for (unsigned k = 0; k < vec->size(); k++) {
+        std::cout << vec->at(k).value << " ";
+    }
+    std::cout << std::endl;
+
+    if (left < right) {
+        unsigned p = middle(vec, left, right);
+        vecSort(vec, left, p);
+        vecSort(vec, p + 1, right);
+    }
+}
+
+
 //--------------------------Очистка вектора---------------------------
 
 
@@ -134,6 +173,8 @@ void classicTest(unsigned length, unsigned seed, unsigned min, unsigned max, boo
         vecRandParallel(seed, &vec, min, max);
 
     std::cout << "Resulting time is: " << omp_get_wtime() - t0 << std::endl << std::endl;
+
+    vecSort(&vec, 0, vec.size() - 1);
 
     for (unsigned i = 0; i < length; i++) {
         std::cout << i << " " << vec[i].value << std::endl;
@@ -174,14 +215,14 @@ void speedTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 
 int main()
 {
-    freopen("output_parallel.txt", "w", stdout);
-    unsigned length = 100000000;
+    //freopen("output_parallel.txt", "w", stdout);
+    unsigned length = 10;
     unsigned seed = 228;
 
     unsigned min = 0;
     unsigned max = 1000;
 
-    bool testType = true;
+    bool testType = false;
     bool isParallel = true;
 
     if (testType == false)
