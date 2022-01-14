@@ -21,15 +21,15 @@ unsigned mod = 4294967295; //(2^32 - 1)
 unsigned mulA = 134775813;
 unsigned offsetB = 1;
 
-#define isAccumulatorNeeded false
+#define isAccumulatorNeeded true
 
 #if isAccumulatorNeeded
-#define accInit vector<unsigned> accumulator(numOfThreads + 1)
-#define accResInit unsigned acc = 0
+#define accInit vector<double> accumulator(numOfThreads + 1)
+#define accResInit double acc = 0
 #define accThreadProc , &accumulator
 #define accInc accumulator[t] += vec->at(i).value
-#define accSum for (auto &accVecVal : accumulator) acc += accVecVal
-#define accOutput std::cout << "Average is " << acc / vec->size() << std::endl
+#define accSum for (auto &accVecVal : accumulator) acc += (accVecVal / vec->size())
+#define accOutput std::cout << "Average is " << acc << std::endl
 #else
 #define accInit
 #define accResInit
@@ -178,9 +178,12 @@ void classicTest(unsigned length, unsigned seed, unsigned min, unsigned max, boo
 
     std::cout << "Resulting time is: " << omp_get_wtime() - t0 << std::endl << std::endl;
 
-    for (unsigned i = 0; i < length; i++) {
-        std::cout << i << " " << vec[i].value << std::endl;
+    /*
+    for (unsigned k = 0; k < vec.size(); k++) {
+        std::cout << vec.at(k).value << " ";
     }
+    std::cout << std::endl << std::endl;
+    */
 
     vecZeroing(&vec);
 }
@@ -229,10 +232,12 @@ void sortTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
         //std::cout << omp_get_wtime() - t0 << std::endl;
         //<---
 
+        /*
         for (unsigned k = 0; k < vec.size(); k++) {
             std::cout << vec.at(k).value << " ";
         }
         std::cout << std::endl << std::endl;
+        */
 
         vecZeroing(&vec);
     }
@@ -245,12 +250,11 @@ void sortTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 
 int main()
 {
-    freopen("output_parallel.txt", "w", stdout);
-    unsigned length = 1000000;
+    unsigned length = 100000000;
     unsigned seed = 228;
 
     unsigned min = 0;
-    unsigned max = 1000;
+    unsigned max = 100000;
 
     bool isParallel = true;
 

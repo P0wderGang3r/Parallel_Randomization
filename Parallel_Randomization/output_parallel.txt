@@ -1,2 +1,19 @@
-Resulting time is: 0.0249927
+Resulting time is 0.536306 seconds for 1 threads
 
+Resulting time is 0.31332 seconds for 2 threads
+
+Resulting time is 0.241739 seconds for 3 threads
+
+Resulting time is 0.20042 seconds for 4 threads
+
+Resulting time is 0.207628 seconds for 5 threads
+
+Resulting time is 0.276823 seconds for 6 threads
+
+Resulting time is 0.299265 seconds for 7 threads
+
+Resulting time is 0.39548 seconds for 8 threads
+
+Resulting time is 7.47316 seconds for 1 threads
+Resulting time is 7.48171 seconds for 2 threads
+Resulting time is 7.61169 seconds for 3 threads
