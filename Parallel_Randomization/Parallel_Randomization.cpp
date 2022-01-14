@@ -3,7 +3,6 @@
 #include <omp.h>
 #include <thread>
 #include <vector>
-#include <Windows.h>
 
 using std::vector;
 using std::thread;
@@ -18,7 +17,7 @@ struct vectorType {
     unsigned value;
 };
 
-unsigned mod = (unsigned)std::pow(2, 32) - 1;
+unsigned mod = 4294967295; //(2^32 - 1)
 unsigned mulA = 134775813;
 unsigned offsetB = 1;
 
@@ -133,16 +132,21 @@ unsigned middle(vector<vectorType>* vec, unsigned left, unsigned right) {
 }
 
 void vecSort(vector<vectorType>* vec, unsigned left, unsigned right) {
+#pragma omp parallel
+    {
+        if (left < right) {
+            unsigned m = middle(vec, left, right);
 
-    for (unsigned k = 0; k < vec->size(); k++) {
-        std::cout << vec->at(k).value << " ";
-    }
-    std::cout << std::endl;
+#pragma omp task
+            {
+                vecSort(vec, left, m);
+            }
 
-    if (left < right) {
-        unsigned p = middle(vec, left, right);
-        vecSort(vec, left, p);
-        vecSort(vec, p + 1, right);
+#pragma omp task
+            {
+                vecSort(vec, m + 1, right);
+            }
+        }
     }
 }
 
@@ -174,8 +178,6 @@ void classicTest(unsigned length, unsigned seed, unsigned min, unsigned max, boo
 
     std::cout << "Resulting time is: " << omp_get_wtime() - t0 << std::endl << std::endl;
 
-    vecSort(&vec, 0, vec.size() - 1);
-
     for (unsigned i = 0; i < length; i++) {
         std::cout << i << " " << vec[i].value << std::endl;
     }
@@ -198,35 +200,63 @@ void speedTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 
         //std::cout << omp_get_wtime() - t0 << std::endl;
 
-        /*
-        for (unsigned j = 0; j < vec.size(); j++) {
-            std::cout << j << " " << vec[j].value << std::endl;
-        }
-        */
-
         vecZeroing(&vec);
     }
 
 }
 
 
+void sortTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
+
+    vector<vectorType> vec(length);
+
+
+    for (unsigned i = 1; i <= std::thread::hardware_concurrency(); i++) {
+
+        //--->Заполнение массива
+        numOfThreads = std::thread::hardware_concurrency();
+        vecRandParallel(seed, &vec, min, max);
+        //<---
+
+        //--->Сортировка
+        numOfThreads = i;
+        omp_set_num_threads(numOfThreads);
+
+        double t0 = omp_get_wtime();
+        
+        vecSort(&vec, 0, vec.size() - 1);
+        std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl;
+        //std::cout << omp_get_wtime() - t0 << std::endl;
+        //<---
+
+        for (unsigned k = 0; k < vec.size(); k++) {
+            std::cout << vec.at(k).value << " ";
+        }
+        std::cout << std::endl << std::endl;
+
+        vecZeroing(&vec);
+    }
+
+    omp_set_num_threads(numOfThreads);
+}
+
 //--------------------------------------------------------------------
 
 
 int main()
 {
-    //freopen("output_parallel.txt", "w", stdout);
-    unsigned length = 10;
+    freopen("output_parallel.txt", "w", stdout);
+    unsigned length = 1000000;
     unsigned seed = 228;
 
     unsigned min = 0;
     unsigned max = 1000;
 
-    bool testType = false;
     bool isParallel = true;
 
-    if (testType == false)
-        classicTest(length, seed, min, max, isParallel);
-    else
-        speedTest(length, seed, min, max);
+    //classicTest(length, seed, min, max, isParallel);
+    
+    speedTest(length, seed, min, max);
+
+    sortTest(length, seed, min, max);
 }
