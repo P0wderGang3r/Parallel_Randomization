@@ -21,10 +21,10 @@ unsigned mod = 4294967295; //(2^32 - 1)
 unsigned mulA = 134775813;
 unsigned offsetB = 1;
 
-#define isAccumulatorNeeded true
+#define isAccumulatorNeeded false
 
 #if isAccumulatorNeeded
-#define accInit vector<double> accumulator(numOfThreads + 1)
+#define accInit vector<double> accumulator(numOfThreads)
 #define accResInit double acc = 0
 #define accThreadProc , &accumulator
 #define accInc accumulator[t] += vec->at(i).value
@@ -178,12 +178,9 @@ void classicTest(unsigned length, unsigned seed, unsigned min, unsigned max, boo
 
     std::cout << "Resulting time is: " << omp_get_wtime() - t0 << std::endl << std::endl;
 
-    /*
-    for (unsigned k = 0; k < vec.size(); k++) {
-        std::cout << vec.at(k).value << " ";
+    for (unsigned i = 0; i < length; i++) {
+        std::cout << i << " " << vec[i].value << std::endl;
     }
-    std::cout << std::endl << std::endl;
-    */
 
     vecZeroing(&vec);
 }
@@ -199,9 +196,9 @@ void speedTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
         double t0 = omp_get_wtime();
 
         vecRandParallel(seed, &vec, min, max);
-        std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl << std::endl;
+        //std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl << std::endl;
 
-        //std::cout << omp_get_wtime() - t0 << std::endl;
+        std::cout << omp_get_wtime() - t0 << std::endl;
 
         vecZeroing(&vec);
     }
@@ -250,11 +247,12 @@ void sortTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 
 int main()
 {
-    unsigned length = 100000000;
+    //freopen("output_parallel.txt", "w", stdout);
+    unsigned length = 10000000;
     unsigned seed = 228;
 
     unsigned min = 0;
-    unsigned max = 100000;
+    unsigned max = 1000;
 
     bool isParallel = true;
 
@@ -262,5 +260,5 @@ int main()
     
     speedTest(length, seed, min, max);
 
-    sortTest(length, seed, min, max);
+    //sortTest(length, seed, min, max);
 }
