@@ -21,7 +21,7 @@ unsigned mod = 4294967295; //(2^32 - 1)
 unsigned mulA = 134775813;
 unsigned offsetB = 1;
 
-#define isAccumulatorNeeded false
+#define isAccumulatorNeeded true
 
 #if isAccumulatorNeeded
 #define accInit vector<double> accumulator(numOfThreads)
@@ -62,6 +62,7 @@ void vecRandLinear(unsigned seedI, vector<vectorType>* vec, unsigned min, unsign
 */
 #define localOffsetB offsetB * (vecMulA[t] - 1) / (vecMulA[0] - 1)
 #define parSeedI vecMulA[t + 1] * seedI + localOffsetB
+
 void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min, unsigned max) {
 
     //---> Создаем массив множителей A
@@ -71,12 +72,21 @@ void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min,
         vecMulA[i] = (vecMulA[i - 1] * mulA) % mod;
     }
     //<---
+    
+    //---> Создаем массив множителей B
+    vector<int> vecOffsetB(numOfThreads);
+    vecOffsetB[0] = offsetB;
+    for (int i = 1; i < vecOffsetB.size(); i++) {
+        vecOffsetB[i] = (vecOffsetB[i - 1] + mulA);
+    }
+    //<---
 
     //---> Создаем массив сумм всех элементов массива vec
     accInit;
     accResInit;
     //<---
 
+    /*
     //---> Процесс каждого из ядер
     auto thread_proc = [=, &vec accThreadProc](unsigned t) {
 
@@ -89,6 +99,26 @@ void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min,
         }
     };
     //<---
+    */
+    
+    //---> Процесс каждого из ядер
+    auto thread_proc = [=, &vec, &vecMulA, &vecOffsetB accThreadProc](unsigned t) {
+
+        unsigned seedI = mulA * seedGlobal + vecOffsetB[t];
+
+        for (unsigned i = t; i < vec->size(); i += numOfThreads) {
+            vec->at(i).value = seedI % valBounds;
+            accInc;
+            for (unsigned j = 0; j < numOfThreads; j++) {
+                vecMulA[t] *= vecMulA[t];
+                vecOffsetB[t] += vecMulA[t];
+            }
+            vecOffsetB[t] %= mod;
+            seedI = mulA * seedI + vecOffsetB[t];
+        }
+    };
+    //<---
+    
 
     //---> Создаем массив исполняющих потоков и инициализируем исполнение каждого из потоков
     vector<thread> threads;
@@ -132,20 +162,17 @@ unsigned middle(vector<vectorType>* vec, unsigned left, unsigned right) {
 }
 
 void vecSort(vector<vectorType>* vec, unsigned left, unsigned right) {
-#pragma omp parallel
-    {
-        if (left < right) {
-            unsigned m = middle(vec, left, right);
+    if (left < right) {
+        unsigned m = middle(vec, left, right);
 
 #pragma omp task
-            {
-                vecSort(vec, left, m);
-            }
+        {
+            vecSort(vec, left, m);
+        }
 
 #pragma omp task
-            {
-                vecSort(vec, m + 1, right);
-            }
+        {
+            vecSort(vec, m + 1, right);
         }
     }
 }
@@ -225,8 +252,8 @@ void sortTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
         double t0 = omp_get_wtime();
         
         vecSort(&vec, 0, vec.size() - 1);
-        std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl;
-        //std::cout << omp_get_wtime() - t0 << std::endl;
+        //std::cout << "Resulting time is " << omp_get_wtime() - t0 << " seconds for " << numOfThreads << " threads" << std::endl;
+        std::cout << omp_get_wtime() - t0 << std::endl;
         //<---
 
         /*
@@ -248,7 +275,7 @@ void sortTest(unsigned length, unsigned seed, unsigned min, unsigned max) {
 int main()
 {
     //freopen("output_parallel.txt", "w", stdout);
-    unsigned length = 10000000;
+    unsigned length = 100;
     unsigned seed = 228;
 
     unsigned min = 0;
@@ -259,6 +286,8 @@ int main()
     //classicTest(length, seed, min, max, isParallel);
     
     speedTest(length, seed, min, max);
+
+    std::cout << std::endl;
 
     //sortTest(length, seed, min, max);
 }
