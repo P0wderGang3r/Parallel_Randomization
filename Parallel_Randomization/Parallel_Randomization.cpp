@@ -85,21 +85,6 @@ void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min,
     accInit;
     accResInit;
     //<---
-
-    /*
-    //---> Процесс каждого из ядер
-    auto thread_proc = [=, &vec accThreadProc](unsigned t) {
-
-        unsigned seedI = vecMulA[t] * seedGlobal + localOffsetB;
-
-        for (unsigned i = t; i < vec->size(); i += numOfThreads) {
-            vec->at(i).value = seedI % valBounds;
-            accInc;
-            seedI = parSeedI;
-        }
-    };
-    //<---
-    */
     
     //---> Процесс каждого из ядер
     auto thread_proc = [=, &vec, &vecMulA, &vecOffsetB accThreadProc](unsigned t) {
@@ -110,7 +95,7 @@ void vecRandParallel(unsigned seedGlobal, vector<vectorType>* vec, unsigned min,
             vec->at(i).value = seedI % valBounds;
             accInc;
             for (unsigned j = 0; j < numOfThreads; j++) {
-                vecMulA[t] *= vecMulA[t];
+                vecMulA[t] *= mulA % mod;
                 vecOffsetB[t] += vecMulA[t];
             }
             vecOffsetB[t] %= mod;
